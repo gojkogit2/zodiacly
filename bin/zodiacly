@@ -1,0 +1,81 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require "optparse"
+require "time"
+require "pp"
+require_relative "../lib/zodiacly"
+
+options = {
+  time: Time.now.utc,
+  bodies: :all
+}
+
+parser = OptionParser.new do |opts|
+  opts.banner = <<~BANNER
+    Usage: zodiacly ephemeris [options]
+
+    Example:
+      zodiacly ephemeris --bodies all
+  BANNER
+
+  opts.on("-t", "--time TIME", "UTC time (ISO8601, e.g. 2026-02-07T00:00:00Z or 'now')") do |v|
+    options[:time] =
+      if v.to_s.strip.downcase == "now"
+        Time.now.utc
+      else
+        Time.parse(v).utc
+      end
+  end
+
+  opts.on("-b", "--bodies LIST", "sun,moon,mars or all") do |v|
+    val = v.to_s.strip.downcase
+    options[:bodies] =
+      if val == "all"
+        :all
+      else
+        val.split(",").map { |s| s.strip.to_sym }
+      end
+  end
+
+  opts.on("-v", "--version", "Show version") { puts Zodiacly::VERSION; exit }
+  opts.on("-h", "--help", "Show help") { puts opts; exit }
+end
+
+original_argv = ARGV.dup
+
+begin
+  parser.order!(ARGV)
+
+  # If no args at all, show help (keep old behavior).
+  if original_argv.empty?
+    puts parser
+    exit 0
+  end
+
+  # Optional subcommand; default to ephemeris if omitted.
+  cmd = (ARGV.first == "ephemeris") ? ARGV.shift : "ephemeris"
+
+  parser.parse!(ARGV)
+rescue OptionParser::ParseError => e
+  warn "Error: #{e.message}"
+  warn
+  warn parser.to_s
+  exit 1
+rescue ArgumentError => e
+  warn "Error: #{e.message}"
+  warn
+  warn "Tip: use ISO8601 like 2026-02-07T00:00:00Z or 'now'."
+  warn
+  warn parser.to_s
+  exit 1
+end
+
+if cmd == "ephemeris"
+  pp Zodiacly::Ephemeris.at(options[:time], bodies: options[:bodies])
+else
+  warn "Unknown command: #{cmd}"
+  warn
+  puts parser
+  exit 1
+end
